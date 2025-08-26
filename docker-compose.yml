@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=sqlite:///./data/legal_assistant.db
+      - UPLOAD_DIRECTORY=uploads
+      - LOG_FILE=logs/app.log
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+    environment:
+      - API_BASE_URL=http://backend:8000
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  logs:
+  data:
