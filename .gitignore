@@ -1,3 +1,4 @@
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -100,3 +101,25 @@ __pypackages__/
 
 # Streamlit
 .streamlit/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+.mypy_cache/
+.pytest_cache/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Node (if/when frontend added)
+node_modules/
+dist/
+build/
+
