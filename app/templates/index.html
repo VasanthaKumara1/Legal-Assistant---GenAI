@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-balance-scale"></i>
+                    <span>Legal Demystifier</span>
+                </div>
+                <nav class="nav">
+                    <a href="#home" class="nav-link active">Home</a>
+                    <a href="#how-it-works" class="nav-link">How It Works</a>
+                    <a href="#features" class="nav-link">Features</a>
+                    <a href="#examples" class="nav-link">Examples</a>
+                </nav>
+                <div class="header-actions">
+                    <button class="btn-complexity" onclick="showComplexitySelector()">
+                        <i class="fas fa-adjust"></i>
+                        Reading Level
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- Hero Section -->
+        <section id="home" class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1 class="hero-title">
+                        Transform Legal Documents into 
+                        <span class="gradient-text">Clear, Accessible Guidance</span>
+                    </h1>
+                    <p class="hero-subtitle">
+                        AI-powered legal document demystification that converts complex jargon 
+                        into plain English, helping you understand your rights and obligations.
+                    </p>
+                    
+                    <div class="upload-section">
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-content">
+                                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                <h3>Upload Your Legal Document</h3>
+                                <p>Drag & drop your file here, or click to browse</p>
+                                <p class="upload-note">Supports PDF, DOCX, TXT files up to 10MB</p>
+                                <input type="file" id="fileInput" accept=".pdf,.docx,.txt" hidden>
+                            </div>
+                        </div>
+                        
+                        <div class="upload-options">
+                            <div class="option-group">
+                                <label for="documentType">Document Type</label>
+                                <select id="documentType" class="form-select">
+                                    <option value="">Auto-detect</option>
+                                    <option value="contract">Contract</option>
+                                    <option value="lease">Lease Agreement</option>
+                                    <option value="employment">Employment Agreement</option>
+                                    <option value="privacy_policy">Privacy Policy</option>
+                                    <option value="terms_of_service">Terms of Service</option>
+                                    <option value="insurance">Insurance Policy</option>
+                                    <option value="loan">Loan Agreement</option>
+                                </select>
+                            </div>
+                            
+                            <div class="option-group">
+                                <label for="complexity">Reading Level</label>
+                                <select id="complexity" class="form-select">
+                                    <option value="elementary">Elementary (5th grade)</option>
+                                    <option value="high_school" selected>High School</option>
+                                    <option value="college">College</option>
+                                    <option value="expert">Expert</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button class="btn-primary" id="analyzeBtn" disabled>
+                            <i class="fas fa-magic"></i>
+                            Analyze Document
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="results" class="results-section" style="display: none;">
+            <div class="container">
+                <div class="results-header">
+                    <h2>Document Analysis Results</h2>
+                    <div class="results-actions">
+                        <button class="btn-secondary" onclick="showOriginal()">
+                            <i class="fas fa-file-alt"></i>
+                            Original
+                        </button>
+                        <button class="btn-secondary active" onclick="showSimplified()">
+                            <i class="fas fa-lightbulb"></i>
+                            Simplified
+                        </button>
+                        <button class="btn-secondary" onclick="showComparison()">
+                            <i class="fas fa-columns"></i>
+                            Side by Side
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="results-content">
+                    <div class="results-sidebar">
+                        <div class="analysis-card">
+                            <h3><i class="fas fa-chart-line"></i> Overview</h3>
+                            <div id="overviewContent">
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                        
+                        <div class="analysis-card">
+                            <h3><i class="fas fa-exclamation-triangle"></i> Risk Assessment</h3>
+                            <div id="riskContent">
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                        
+                        <div class="analysis-card">
+                            <h3><i class="fas fa-calendar-alt"></i> Important Dates</h3>
+                            <div id="datesContent">
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                        
+                        <div class="analysis-card">
+                            <h3><i class="fas fa-book"></i> Legal Terms</h3>
+                            <div id="termsContent">
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="document-viewer">
+                        <div id="documentContent">
+                            <!-- Dynamic document content -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="features-section">
+            <div class="container">
+                <h2 class="section-title">Powerful Features for Legal Clarity</h2>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-language"></i>
+                        </div>
+                        <h3>Smart Translation</h3>
+                        <p>AI-powered conversion of legal jargon to plain English while maintaining accuracy</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h3>Key Section Detection</h3>
+                        <p>Automatically identifies and highlights critical clauses and obligations</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h3>Risk Assessment</h3>
+                        <p>Clear explanations of potential risks and red flags in your documents</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <h3>Timeline Extraction</h3>
+                        <p>Identifies deadlines, renewal dates, and key milestones</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-universal-access"></i>
+                        </div>
+                        <h3>Accessibility First</h3>
+                        <p>Multiple reading levels and screen reader compatibility</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <h3>Interactive Explanations</h3>
+                        <p>Click-to-explain functionality for any legal term or concept</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Examples Section -->
+        <section id="examples" class="examples-section">
+            <div class="container">
+                <h2 class="section-title">See the Difference</h2>
+                
+                <div class="example-tabs">
+                    <button class="tab-btn active" onclick="showExample('before-after')">Before & After</button>
+                    <button class="tab-btn" onclick="showExample('complexity')">Complexity Levels</button>
+                    <button class="tab-btn" onclick="showExample('risk-flags')">Risk Detection</button>
+                </div>
+                
+                <div class="example-content">
+                    <div id="before-after" class="example-panel active">
+                        <div class="comparison-grid">
+                            <div class="comparison-card">
+                                <h4>Original Legal Text</h4>
+                                <div class="text-content legal-text">
+                                    "The Licensee shall indemnify, defend and hold harmless the Licensor from and against any and all claims, demands, losses, costs, expenses, obligations, liabilities, damages, recoveries, and deficiencies..."
+                                </div>
+                            </div>
+                            <div class="comparison-card">
+                                <h4>Simplified Version</h4>
+                                <div class="text-content simplified-text">
+                                    "You agree to pay for any legal problems or costs that happen because of your use of this service. This includes lawyer fees and damages."
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="logo">
+                        <i class="fas fa-balance-scale"></i>
+                        <span>Legal Demystifier</span>
+                    </div>
+                    <p>Making legal documents accessible to everyone.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Important Note</h4>
+                    <p>This tool provides simplified explanations for educational purposes only. Always consult with a qualified attorney for legal advice.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="loading-spinner"></div>
+            <h3>Analyzing Your Document</h3>
+            <p>Our AI is reading through your document and translating complex legal language...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p id="progressText">Processing...</p>
+        </div>
+    </div>
+
+    <!-- Term Explanation Modal -->
+    <div id="termModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="termTitle">Legal Term</h3>
+                <button class="modal-close" onclick="closeTermModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="termExplanation">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
