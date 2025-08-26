@@ -3,10 +3,17 @@ AI service for legal document simplification using OpenAI GPT.
 """
 import time
 from typing import Tuple, Optional
-import openai
-import tiktoken
 from loguru import logger
 from backend.config.settings import settings
+
+# Import OpenAI with graceful fallback
+try:
+    import openai
+    import tiktoken
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logger.warning("OpenAI libraries not available. AI features will be disabled.")
 
 
 class AIService:
@@ -14,15 +21,25 @@ class AIService:
     
     def __init__(self):
         """Initialize AI service."""
+        if not OPENAI_AVAILABLE:
+            logger.warning("OpenAI not available - AI features will not work.")
+            return
+            
         if settings.openai_api_key:
             openai.api_key = settings.openai_api_key
         else:
             logger.warning("OpenAI API key not provided. AI features will not work.")
         
-        self.encoding = tiktoken.encoding_for_model(settings.openai_model)
+        try:
+            self.encoding = tiktoken.encoding_for_model(settings.openai_model)
+        except Exception as e:
+            logger.warning(f"Could not load tiktoken encoding: {e}")
+            self.encoding = None
     
     def count_tokens(self, text: str) -> int:
         """Count the number of tokens in a text string."""
+        if not self.encoding:
+            return len(text.split())  # Fallback to word count
         return len(self.encoding.encode(text))
     
     async def simplify_legal_text(
@@ -40,6 +57,9 @@ class AIService:
         Returns:
             Tuple of (simplified_text, tokens_used, processing_time)
         """
+        if not OPENAI_AVAILABLE:
+            raise ValueError("OpenAI libraries not available")
+            
         if not settings.openai_api_key:
             raise ValueError("OpenAI API key not configured")
         
@@ -153,6 +173,9 @@ class AIService:
     
     def validate_api_key(self) -> bool:
         """Validate that the OpenAI API key is working."""
+        if not OPENAI_AVAILABLE:
+            return False
+            
         if not settings.openai_api_key:
             return False
         

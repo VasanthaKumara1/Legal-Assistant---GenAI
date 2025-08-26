@@ -4,13 +4,44 @@ OCR service for extracting text from various document formats.
 import os
 import tempfile
 from typing import Optional, Tuple
-from PIL import Image
-import pytesseract
-import pdf2image
-from docx import Document as DocxDocument
-import PyPDF2
 from loguru import logger
 from backend.config.settings import settings
+
+# Import dependencies with graceful fallbacks
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    logger.warning("PIL not available. Image processing will be disabled.")
+
+try:
+    import pytesseract
+    PYTESSERACT_AVAILABLE = True
+except ImportError:
+    PYTESSERACT_AVAILABLE = False
+    logger.warning("pytesseract not available. OCR will be disabled.")
+
+try:
+    import pdf2image
+    PDF2IMAGE_AVAILABLE = True
+except ImportError:
+    PDF2IMAGE_AVAILABLE = False
+    logger.warning("pdf2image not available. PDF image processing will be disabled.")
+
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    logger.warning("python-docx not available. DOCX processing will be disabled.")
+
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PYPDF2_AVAILABLE = False
+    logger.warning("PyPDF2 not available. PDF text extraction will be disabled.")
 
 
 class OCRService:
@@ -36,11 +67,17 @@ class OCRService:
             logger.info(f"Starting OCR extraction for {file_path} with type {mime_type}")
             
             if mime_type == "application/pdf":
+                if not PYPDF2_AVAILABLE and not PDF2IMAGE_AVAILABLE:
+                    return "PDF processing not available - missing dependencies", False
                 return await self._extract_from_pdf(file_path)
             elif mime_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
                              "application/msword"]:
+                if not DOCX_AVAILABLE:
+                    return "DOCX processing not available - missing python-docx", False
                 return await self._extract_from_docx(file_path)
             elif mime_type.startswith("image/"):
+                if not PIL_AVAILABLE or not PYTESSERACT_AVAILABLE:
+                    return "Image OCR not available - missing PIL or pytesseract", False
                 return await self._extract_from_image(file_path)
             elif mime_type == "text/plain":
                 return await self._extract_from_text(file_path)
@@ -54,6 +91,9 @@ class OCRService:
     
     async def _extract_from_pdf(self, file_path: str) -> Tuple[str, bool]:
         """Extract text from PDF file."""
+        if not PYPDF2_AVAILABLE:
+            return "PDF processing not available", False
+            
         try:
             # First try to extract text directly (for text-based PDFs)
             with open(file_path, 'rb') as file:
@@ -68,8 +108,11 @@ class OCRService:
                     return text.strip(), True
             
             # If direct extraction failed, use OCR on images
-            logger.info("Direct PDF text extraction failed, trying OCR on images")
-            return await self._extract_from_pdf_images(file_path)
+            if PDF2IMAGE_AVAILABLE and PIL_AVAILABLE and PYTESSERACT_AVAILABLE:
+                logger.info("Direct PDF text extraction failed, trying OCR on images")
+                return await self._extract_from_pdf_images(file_path)
+            else:
+                return "PDF OCR not available - missing dependencies", False
             
         except Exception as e:
             logger.error(f"PDF extraction failed: {str(e)}")

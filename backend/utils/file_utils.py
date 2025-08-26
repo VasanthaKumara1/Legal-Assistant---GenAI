@@ -3,10 +3,16 @@ Utility functions for file handling and validation.
 """
 import os
 import uuid
-import magic
 from typing import Tuple, Optional
 from fastapi import UploadFile
 from backend.config.settings import settings
+
+# Import magic with graceful fallback
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    MAGIC_AVAILABLE = False
 
 
 def validate_file(file: UploadFile) -> Tuple[bool, Optional[str]]:
@@ -43,21 +49,24 @@ def get_file_mime_type(file_path: str) -> str:
         MIME type string
     """
     try:
-        mime = magic.Magic(mime=True)
-        return mime.from_file(file_path)
+        if MAGIC_AVAILABLE:
+            mime = magic.Magic(mime=True)
+            return mime.from_file(file_path)
     except Exception:
-        # Fallback to guessing from extension
-        extension = os.path.splitext(file_path.lower())[1]
-        mime_map = {
-            '.pdf': 'application/pdf',
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            '.doc': 'application/msword',
-            '.txt': 'text/plain',
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg'
-        }
-        return mime_map.get(extension, 'application/octet-stream')
+        pass
+    
+    # Fallback to guessing from extension
+    extension = os.path.splitext(file_path.lower())[1]
+    mime_map = {
+        '.pdf': 'application/pdf',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.doc': 'application/msword',
+        '.txt': 'text/plain',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg'
+    }
+    return mime_map.get(extension, 'application/octet-stream')
 
 
 def generate_unique_filename(original_filename: str) -> str:
