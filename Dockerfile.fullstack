@@ -1,0 +1,34 @@
+# Combined Dockerfile for full-stack deployment
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache curl
+
+# Copy and install minimal requirements
+COPY requirements.minimal.txt .
+RUN pip install --no-cache-dir -r requirements.minimal.txt
+
+# Copy application files
+COPY combined_app.py .
+
+# Create necessary directories
+RUN mkdir -p uploads logs data
+
+# Add non-root user
+RUN adduser -D -s /bin/sh railway
+RUN chown -R railway:railway /app
+
+# Switch to non-root user
+USER railway
+
+# Expose port
+EXPOSE $PORT
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:$PORT/health
+
+# Start the application
+CMD python combined_app.py
