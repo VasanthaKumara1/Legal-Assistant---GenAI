@@ -9,8 +9,12 @@ RUN apk add --no-cache curl
 # Copy only what we need
 COPY simple_main.py .
 
-# Install only essential Python packages
-RUN pip install --no-cache-dir fastapi==0.104.1 uvicorn==0.24.0 python-multipart==0.0.6
+# Install only essential Python packages directly (no requirements file)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn==0.24.0 \
+    python-multipart==0.0.6
 
 # Create directories
 RUN mkdir -p uploads logs
