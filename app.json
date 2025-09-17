@@ -1,0 +1,30 @@
+{
+  "name": "Legal Assistant GenAI",
+  "description": "AI-powered legal document simplification and analysis prototype",
+  "image": "heroku/python",
+  "stack": "heroku-22",
+  "repository": "https://github.com/VasanthaKumara1/Legal-Assistant---GenAI",
+  "keywords": ["python", "fastapi", "ai", "legal", "document-analysis"],
+  "env": {
+    "DEBUG": {
+      "description": "Debug mode",
+      "value": "false"
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level",
+      "value": "INFO"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  },
+  "addons": [],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
