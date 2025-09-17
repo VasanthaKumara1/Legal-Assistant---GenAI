@@ -1,0 +1,34 @@
+# Ultra-lightweight Dockerfile for Railway
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Install minimal system dependencies
+RUN apk add --no-cache curl
+
+# Copy only what we need
+COPY simple_main.py .
+
+# Install only essential Python packages
+RUN pip install --no-cache-dir fastapi==0.104.1 uvicorn==0.24.0 python-multipart==0.0.6
+
+# Create directories
+RUN mkdir -p uploads logs
+
+# Non-root user
+RUN adduser -D -s /bin/sh railway
+RUN chown -R railway:railway /app
+USER railway
+
+# Environment
+ENV PYTHONPATH=/app
+ENV PORT=8000
+
+EXPOSE $PORT
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:$PORT/health || exit 1
+
+# Start
+CMD ["python", "simple_main.py"]
