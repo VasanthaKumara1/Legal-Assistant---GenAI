@@ -1,0 +1,30 @@
+# Ultra minimal Dockerfile - Python standard library only
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# Install only curl for health checks
+RUN apk add --no-cache curl
+
+# Copy standalone server (no external dependencies)
+COPY standalone_server.py .
+
+# Create directories
+RUN mkdir -p uploads logs
+
+# Non-root user
+RUN adduser -D -s /bin/sh railway
+RUN chown -R railway:railway /app
+USER railway
+
+# Environment
+ENV PORT=8000
+
+EXPOSE $PORT
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:$PORT/health || exit 1
+
+# Start with Python standard library only
+CMD ["python", "standalone_server.py"]
