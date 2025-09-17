@@ -1,0 +1,19 @@
+# Legal Assistant GenAI - Prototype Requirements
+# Simplified dependencies for working prototype
+
+# Backend Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Data Models and Validation
+pydantic==2.5.0
+
+# Frontend Framework  
+streamlit==1.28.2
+
+# HTTP Requests
+requests==2.31.0
+
+# Development and Testing
+pytest==7.4.3
