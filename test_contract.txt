@@ -1,0 +1,13 @@
+This is a sample legal contract for testing purposes.
+
+RENTAL AGREEMENT
+
+This Rental Agreement is entered into between the Landlord and Tenant.
+
+1. RENT: Tenant agrees to pay monthly rent of $1,500 due on the 1st of each month.
+
+2. SECURITY DEPOSIT: Tenant will pay a security deposit of $3,000.
+
+3. TERMINATION: Either party may terminate this agreement with 30 days written notice.
+
+4. LIABILITY: Tenant shall indemnify and hold harmless the Landlord from any claims.

@@ -1,20 +1,6 @@
 version: '3.8'
 
 services:
-  backend:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DATABASE_URL=sqlite:///./data/legal_assistant.db
-      - UPLOAD_DIRECTORY=uploads
-      - LOG_FILE=logs/app.log
-    volumes:
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
-      - ./data:/app/data
-    restart: unless-stopped
   # PostgreSQL Database
   postgres:
     image: postgres:15
@@ -53,14 +39,17 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DATABASE_URL=postgresql://legal_user:legal_password@postgres:5432/legal_assistant_db
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=your-secret-key-change-in-production
       - DEBUG=true
+      - UPLOAD_DIRECTORY=uploads
+      - LOG_FILE=logs/app.log
     volumes:
-      - ./app:/app/app
-      - upload_data:/app/data/uploads
-      - processed_data:/app/data/processed
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,77 +60,31 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
+  # Legal Assistant Frontend
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.streamlit
     ports:
       - "8501:8501"
-    depends_on:
-      - backend
-    environment:
-      - API_BASE_URL=http://backend:8000
-    restart: unless-stopped
-
-volumes:
-  uploads:
-  logs:
-  data:
-
-  # Legal Assistant Frontend
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    ports:
-      - "8501:8501"
     environment:
       - BACKEND_URL=http://backend:8000
-    volumes:
-      - ./frontend:/app/frontend
+      - API_BASE_URL=http://backend:8000
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501"]
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # Prometheus Monitoring
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-
-  # Grafana Dashboard
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
-  upload_data:
-  processed_data:
-  prometheus_data:
-  grafana_data:
 
 networks:
   default:
