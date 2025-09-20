@@ -305,6 +305,11 @@ async def process_document_with_ai(content: str, filename: str) -> dict:
 
 # Main application endpoints
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Railway deployment"""
+    return {"status": "healthy", "service": "Legal Assistant"}
+
 @app.post("/api/simplify")
 async def simplify_text(request: Request):
     body = await request.json()
