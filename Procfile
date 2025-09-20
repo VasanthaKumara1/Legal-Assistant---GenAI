@@ -1,1 +1,1 @@
-web: python simple_main.py
+web: uvicorn combined_app:app --host 0.0.0.0 --port $PORT

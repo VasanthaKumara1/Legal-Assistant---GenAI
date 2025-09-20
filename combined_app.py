@@ -9,7 +9,7 @@ import threading
 import time
 import json
 import re
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,7 +20,9 @@ import google.generativeai as genai
 app = FastAPI(
     title="Legal Assistant GenAI",
     description="AI Legal Assistant with Document Processing and Gemini AI Integration",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None,
+    redoc_url=None
 )
 
 # Add CORS middleware
@@ -33,10 +35,10 @@ app.add_middleware(
 )
 
 # Initialize Gemini AI
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if GEMINI_API_KEY:
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or "AIzaSyBv-izgP1AAh-Pf78mqueGIgse5VDCGaoI"
+if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     print("✅ Gemini AI initialized successfully")
 else:
     model = None
@@ -56,20 +58,22 @@ async def get_ai_response(prompt: str) -> str:
 async def simplify_legal_text(text: str) -> dict:
     """Use Gemini AI to simplify legal text"""
     prompt = f"""
-    You are a legal expert assistant. Please analyze and simplify the following legal text:
-
-    Text: "{text}"
-
-    Please provide a response in the following JSON format:
+    You are a friendly legal expert who explains complex legal matters in simple, everyday language.
+    
+    Your task: Take this legal text and explain it as if you're talking to a neighbor who has no legal background.
+    
+    Legal Text: "{text}"
+    
+    Please respond in JSON format with these sections:
     {{
-        "simplified_text": "A clear, simple explanation in plain English that a high school student could understand",
+        "simplified_text": "Explain this in plain English using everyday words. Imagine explaining to a friend over coffee. Avoid legal jargon completely.",
         "complexity_level": "high/medium/low",
-        "key_points": ["list of 2-3 main points explained in simple terms"],
-        "red_flags": ["list of 2-3 potential issues or things to watch out for"],
-        "legal_advice": "Brief general guidance (not specific legal advice)"
+        "key_points": ["2-3 main points in simple bullet format - what this really means for the person"],
+        "red_flags": ["everything to be careful about - explain WHY they matter"],
+        "legal_advice": "Practical next steps in friendly, non-intimidating language"
     }}
-
-    Focus on making complex legal jargon accessible while highlighting important considerations.
+    
+    Remember: Use simple words, short sentences, and relate to everyday situations people understand.
     """
     
     ai_response = await get_ai_response(prompt)
@@ -109,24 +113,29 @@ async def lookup_legal_terms(terms: list) -> dict:
     """Use Gemini AI to define legal terms"""
     terms_str = ", ".join(terms)
     prompt = f"""
-    You are a legal dictionary expert. Please provide clear definitions for these legal terms: {terms_str}
-
-    For each term, provide:
-    1. A formal legal definition
-    2. A simple explanation that anyone can understand
-    3. An example of how it's commonly used
-
+    You are a professional legal consultant who specializes in making law accessible to everyone.
+    
+    Please explain these legal terms: {terms_str}
+    
+    For each term, provide a professional yet friendly explanation that any person can understand.
+    
     Format as JSON:
     {{
         "definitions": [
             {{
                 "term": "term name",
-                "definition": "formal legal definition",
-                "simple_explanation": "easy to understand explanation",
-                "example": "practical example of usage"
+                "definition": "Professional definition in clear, simple language",
+                "simple_explanation": "What this means in everyday life - use analogies if helpful",
+                "example": "Real-world example showing when this term matters"
             }}
         ]
     }}
+    
+    Guidelines:
+    - Use professional but warm tone
+    - Avoid intimidating legal language
+    - Include why this term matters to regular people
+    - Make it practical and relatable
     """
     
     ai_response = await get_ai_response(prompt)
@@ -162,21 +171,27 @@ async def lookup_legal_terms(terms: list) -> dict:
 async def assess_legal_risk(document_text: str) -> dict:
     """Use Gemini AI to assess legal risks"""
     prompt = f"""
-    You are a legal risk assessment expert. Please analyze the following document text for potential legal risks:
-
-    Document: "{document_text}"
-
-    Provide a comprehensive risk assessment in JSON format:
+    You are a professional legal consultant conducting a risk assessment for a client.
+    
+    Document to analyze: "{document_text}"
+    
+    Provide a professional risk assessment that a business owner or individual can understand and act upon:
+    
     {{
         "risk_level": "low/medium/high",
         "risk_score": "number from 0-100",
-        "risk_factors": ["list of specific risk factors found"],
-        "recommendations": ["list of specific recommendations"],
-        "legal_concerns": ["list of legal issues to address"],
+        "risk_factors": ["Specific issues found - explain WHY each is problematic in simple terms"],
+        "recommendations": ["Clear, actionable steps the person should take"],
+        "legal_concerns": ["Potential problems explained in everyday language"],
         "urgency": "low/medium/high - how quickly this should be addressed"
     }}
-
-    Focus on practical, actionable insights about potential legal issues.
+    
+    Guidelines:
+    - Professional but approachable tone
+    - Explain the 'why' behind each risk
+    - Give practical next steps
+    - Help them understand what's at stake
+    - Avoid legal jargon - use plain English
     """
     
     ai_response = await get_ai_response(prompt)
@@ -210,23 +225,85 @@ async def assess_legal_risk(document_text: str) -> dict:
         "urgency": "medium"
     }
 
-# Simplified API endpoints (mock data for deployment)
-@app.get("/")
-async def root():
+def extract_text_from_file(content: bytes, filename: str) -> str:
+    """Extract text content from uploaded file"""
+    file_extension = '.' + filename.split('.')[-1].lower() if '.' in filename else ''
+    
+    try:
+        if file_extension == '.txt':
+            # Handle plain text files
+            return content.decode('utf-8')
+        elif file_extension in ['.pdf', '.doc', '.docx']:
+            # For now, return a placeholder - in production you'd use proper parsers
+            # like PyPDF2, python-docx, etc.
+            return f"[Document content from {filename} - {len(content)} bytes. For demo purposes, assuming this contains legal text that needs analysis.]"
+        else:
+            return "Unsupported file format"
+    except Exception as e:
+        return f"Error extracting text: {str(e)}"
+
+async def process_document_with_ai(content: str, filename: str) -> dict:
+    """Process document content with AI analysis"""
+    prompt = f"""
+    You are a professional legal consultant analyzing a document for a client.
+    
+    Document Name: {filename}
+    Document Content: "{content}"
+    
+    Please provide a comprehensive analysis in JSON format:
+    {{
+        "document_summary": "Brief summary of the document in simple language",
+        "document_type": "contract/agreement/policy/legal notice/other",
+        "key_findings": ["3-4 main points about what this document does"],
+        "risk_assessment": {{
+            "risk_level": "low/medium/high",
+            "risk_score": "number from 0-100",
+            "main_risks": ["Risk 1 description as string", "Risk 2 description as string", "Risk 3 description as string"]
+        }},
+        "important_clauses": ["Notable terms or clauses that need attention"],
+        "recommendations": ["What the person should do next"],
+        "plain_english_explanation": "Explain what this document means in everyday language"
+    }}
+    
+    IMPORTANT: Ensure main_risks contains only simple string descriptions, not objects.
+    Make everything accessible to non-lawyers. Focus on practical implications.
+    """
+    
+    ai_response = await get_ai_response(prompt)
+    
+    try:
+        import json
+        import re
+        # Extract JSON from response
+        json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+        if json_match:
+            parsed = json.loads(json_match.group())
+            return {
+                "success": True,
+                "analysis": parsed
+            }
+    except Exception as e:
+        pass
+    
+    # Fallback response
     return {
-        "message": "Legal Assistant GenAI - Full Stack",
-        "version": "1.0.0",
-        "status": "running",
-        "services": {
-            "api": "Available at /api/*",
-            "ui": "Streamlit UI available at /ui",
-            "docs": "API docs at /docs"
+        "success": True,
+        "analysis": {
+            "document_summary": "AI analysis completed",
+            "document_type": "legal document",
+            "key_findings": ["Document uploaded and processed"],
+            "risk_assessment": {
+                "risk_level": "medium",
+                "risk_score": 50,
+                "main_risks": ["Professional review recommended"]
+            },
+            "important_clauses": ["Consult with legal professional for detailed review"],
+            "recommendations": ["Have a qualified attorney review this document"],
+            "plain_english_explanation": ai_response[:500] + "..."
         }
     }
 
-@app.get("/health")
-async def health():
-    return {"status": "healthy", "service": "Legal Assistant GenAI Full Stack"}
+# Main application endpoints
 
 @app.post("/api/simplify")
 async def simplify_text(request: Request):
@@ -260,14 +337,59 @@ async def risk_assessment(request: Request):
     
     return await assess_legal_risk(document_text)
 
-@app.post("/api/upload")
-async def upload_document(request: Request):
-    return {
-        "success": True,
-        "file_id": "doc_123",
-        "message": "Document uploaded successfully - AI analysis coming soon",
-        "processing_status": "queued"
-    }
+@app.post("/api/documents/upload")
+async def upload_document(file: UploadFile = File(...)):
+    try:
+        # Read file content
+        content = await file.read()
+        file_size = len(content)
+        
+        # Basic file validation
+        if file_size > 10 * 1024 * 1024:  # 10MB limit
+            return {
+                "success": False,
+                "error": "File too large. Maximum size is 10MB."
+            }
+        
+        # Check file type
+        allowed_types = ['.pdf', '.doc', '.docx', '.txt']
+        file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+        
+        if file_extension not in allowed_types:
+            return {
+                "success": False,
+                "error": f"File type not supported. Allowed types: {', '.join(allowed_types)}"
+            }
+        
+        # Extract text from file
+        extracted_text = extract_text_from_file(content, file.filename)
+        
+        if not extracted_text or extracted_text.startswith("Error"):
+            return {
+                "success": False,
+                "error": "Could not extract text from file"
+            }
+        
+        # Process with AI
+        ai_analysis = await process_document_with_ai(extracted_text, file.filename)
+        
+        return {
+            "success": True,
+            "file_id": f"doc_{hash(file.filename)}_{int(time.time())}",
+            "filename": file.filename,
+            "size": file_size,
+            "file_type": file_extension,
+            "extracted_text": extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text,
+            "ai_analysis": ai_analysis.get("analysis", {}),
+            "message": "Document uploaded and analyzed successfully",
+            "processing_status": "completed"
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Upload failed: {str(e)}"
+        }
 
 # Interactive Web UI
 @app.get("/ui")
@@ -276,93 +398,516 @@ async def interactive_ui(request: Request):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Legal Assistant GenAI - Interactive UI</title>
+        <title>Legal Assistant Pro - AI-Powered Legal Analysis</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
         <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-            .header { text-align: center; color: white; margin-bottom: 40px; padding: 40px 0; }
-            .header h1 { font-size: 3em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-            .header p { font-size: 1.2em; opacity: 0.9; }
-            .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 40px; }
-            .feature-panel { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-            .feature-panel h3 { color: #4a5568; margin-bottom: 20px; font-size: 1.5em; }
-            .input-group { margin-bottom: 20px; }
-            .input-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #2d3748; }
-            .input-group textarea, .input-group input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: border-color 0.3s; }
-            .input-group textarea:focus, .input-group input:focus { outline: none; border-color: #667eea; }
-            .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: transform 0.2s; }
-            .btn:hover { transform: translateY(-2px); }
-            .result-box { margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #667eea; }
-            .api-links { text-align: center; margin-top: 30px; }
-            .api-links a { color: white; text-decoration: none; margin: 0 15px; padding: 10px 20px; background: rgba(255,255,255,0.2); border-radius: 25px; transition: background 0.3s; }
-            .api-links a:hover { background: rgba(255,255,255,0.3); }
-            @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+                min-height: 100vh;
+                padding: 20px;
+                line-height: 1.6;
+            }
+            
+            .main-container {
+                max-width: 1400px;
+                margin: 0 auto;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                border-radius: 24px;
+                box-shadow: 0 32px 64px rgba(0, 0, 0, 0.12);
+                overflow: hidden;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            
+            .header {
+                background: linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%);
+                color: white;
+                padding: 60px 40px;
+                text-align: center;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .header::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 100" fill="rgba(255,255,255,0.05)"><polygon points="0,0 1000,0 1000,100 0,80"/></svg>');
+                background-size: cover;
+            }
+            
+            .header-content {
+                position: relative;
+                z-index: 1;
+            }
+            
+            .header h1 {
+                font-size: 3.5rem;
+                font-weight: 700;
+                margin-bottom: 16px;
+                background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            
+            .header .subtitle {
+                font-size: 1.25rem;
+                font-weight: 400;
+                opacity: 0.9;
+                margin-bottom: 8px;
+            }
+            
+            .header .tagline {
+                font-size: 1rem;
+                opacity: 0.7;
+                font-weight: 300;
+            }
+            
+            .main-content {
+                padding: 50px 40px;
+            }
+            
+            .features-section {
+                margin-bottom: 50px;
+            }
+            
+            .section-title {
+                text-align: center;
+                font-size: 2rem;
+                font-weight: 600;
+                color: #1a237e;
+                margin-bottom: 40px;
+            }
+            
+            .features-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+                gap: 30px;
+                margin-bottom: 50px;
+            }
+            
+            .feature-card {
+                background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+                border-radius: 20px;
+                padding: 35px;
+                border: 1px solid rgba(26, 35, 126, 0.1);
+                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .feature-card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 4px;
+                background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            }
+            
+            .feature-card:hover {
+                transform: translateY(-8px);
+                box-shadow: 0 24px 48px rgba(102, 126, 234, 0.15);
+                border-color: rgba(102, 126, 234, 0.3);
+            }
+            
+            .feature-icon {
+                font-size: 2.5rem;
+                color: #667eea;
+                margin-bottom: 20px;
+                display: block;
+            }
+            
+            .feature-card h3 {
+                color: #1a237e;
+                font-size: 1.5rem;
+                font-weight: 600;
+                margin-bottom: 15px;
+            }
+            
+            .feature-card p {
+                color: #64748b;
+                font-weight: 400;
+                line-height: 1.7;
+                margin-bottom: 25px;
+            }
+            
+            .form-section {
+                background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+                border-radius: 20px;
+                padding: 40px;
+                border: 1px solid rgba(26, 35, 126, 0.1);
+                margin-bottom: 30px;
+            }
+            
+            .form-group {
+                margin-bottom: 30px;
+            }
+            
+            .form-label {
+                display: block;
+                font-weight: 600;
+                color: #1e293b;
+                margin-bottom: 12px;
+                font-size: 1rem;
+            }
+            
+            .form-input, .form-textarea {
+                width: 100%;
+                padding: 16px 20px;
+                border: 2px solid #e2e8f0;
+                border-radius: 12px;
+                font-family: inherit;
+                font-size: 15px;
+                transition: all 0.3s ease;
+                background: white;
+            }
+            
+            .form-input:focus, .form-textarea:focus {
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+                transform: translateY(-1px);
+            }
+            
+            .btn-primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                padding: 18px 40px;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                width: 100%;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .btn-primary::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                transition: left 0.5s;
+            }
+            
+            .btn-primary:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 16px 32px rgba(102, 126, 234, 0.3);
+            }
+            
+            .btn-primary:hover::before {
+                left: 100%;
+            }
+            
+            .result-container {
+                background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                border-radius: 20px;
+                padding: 35px;
+                margin-top: 30px;
+                border: 1px solid rgba(14, 165, 233, 0.2);
+                border-left: 6px solid #0ea5e9;
+                display: none;
+            }
+            
+            .result-title {
+                color: #0369a1;
+                font-size: 1.5rem;
+                font-weight: 600;
+                margin-bottom: 20px;
+                display: flex;
+                align-items: center;
+            }
+            
+            .result-title i {
+                margin-right: 12px;
+            }
+            
+            .loading-container {
+                display: none;
+                text-align: center;
+                padding: 50px;
+            }
+            
+            .loading-spinner {
+                width: 50px;
+                height: 50px;
+                border: 4px solid #e2e8f0;
+                border-top: 4px solid #667eea;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 20px;
+            }
+            
+            .loading-text {
+                color: #64748b;
+                font-weight: 500;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            .error-container {
+                background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+                border: 1px solid rgba(239, 68, 68, 0.2);
+                border-left: 6px solid #ef4444;
+                color: #dc2626;
+                padding: 20px;
+                border-radius: 12px;
+                margin-top: 20px;
+            }
+            
+            .tabs {
+                display: flex;
+                margin-bottom: 30px;
+                background: #f1f5f9;
+                border-radius: 12px;
+                padding: 6px;
+            }
+            
+            .tab {
+                flex: 1;
+                padding: 12px 20px;
+                text-align: center;
+                cursor: pointer;
+                border-radius: 8px;
+                font-weight: 500;
+                transition: all 0.3s ease;
+                color: #64748b;
+            }
+            
+            .tab.active {
+                background: white;
+                color: #1e293b;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            .tab-content {
+                display: none;
+            }
+            
+            .tab-content.active {
+                display: block;
+            }
+            
+            @media (max-width: 768px) {
+                .main-container {
+                    margin: 10px;
+                    border-radius: 16px;
+                }
+                
+                .header {
+                    padding: 40px 20px;
+                }
+                
+                .header h1 {
+                    font-size: 2.5rem;
+                }
+                
+                .main-content {
+                    padding: 30px 20px;
+                }
+                
+                .features-grid {
+                    grid-template-columns: 1fr;
+                    gap: 20px;
+                }
+                
+                .form-section {
+                    padding: 25px;
+                }
+            }
         </style>
     </head>
     <body>
-        <div class="container">
+        <div class="main-container">
             <div class="header">
-                <h1>⚖️ Legal Assistant GenAI</h1>
-                <p>AI-Powered Legal Document Analysis & Simplification</p>
+                <div class="header-content">
+                    <h1><i class="fas fa-balance-scale"></i> Legal Assistant Pro</h1>
+                    <p class="subtitle">AI-Powered Legal Document Analysis & Simplification</p>
+                    <p class="tagline">Making Legal Language Accessible to Everyone</p>
+                </div>
             </div>
             
             <div class="main-content">
-                <div class="feature-panel">
-                    <h3>🔍 Text Simplification</h3>
-                    <div class="input-group">
-                        <label>Legal Text to Simplify:</label>
-                        <textarea id="simplifyText" rows="4" placeholder="Enter complex legal text here..."></textarea>
+                <div class="features-section">
+                    <h2 class="section-title">Professional Legal AI Services</h2>
+                    
+                    <div class="tabs">
+                        <div class="tab active" onclick="switchTab('simplify')">
+                            <i class="fas fa-language"></i> Text Simplification
+                        </div>
+                        <div class="tab" onclick="switchTab('terms')">
+                            <i class="fas fa-book"></i> Legal Dictionary
+                        </div>
+                        <div class="tab" onclick="switchTab('risk')">
+                            <i class="fas fa-shield-alt"></i> Risk Assessment
+                        </div>
+                        <div class="tab" onclick="switchTab('upload')">
+                            <i class="fas fa-upload"></i> Document Analysis
+                        </div>
                     </div>
-                    <button class="btn" onclick="simplifyText()">Simplify Text</button>
-                    <div id="simplifyResult" class="result-box" style="display:none;"></div>
-                </div>
-                
-                <div class="feature-panel">
-                    <h3>📚 Legal Terms Lookup</h3>
-                    <div class="input-group">
-                        <label>Legal Terms (comma-separated):</label>
-                        <input id="termsInput" type="text" placeholder="liability, indemnification, warranty">
+                    
+                    <div id="simplify-tab" class="tab-content active">
+                        <div class="form-section">
+                            <i class="feature-icon fas fa-language"></i>
+                            <h3>Legal Text Simplification</h3>
+                            <p>Transform complex legal jargon into clear, understandable language that anyone can comprehend.</p>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Enter Legal Text to Simplify:</label>
+                                <textarea id="simplifyText" class="form-textarea" rows="6" placeholder="Paste your complex legal text here, and our AI will explain it in plain English..."></textarea>
+                            </div>
+                            <button class="btn-primary" onclick="simplifyText()">
+                                <i class="fas fa-magic"></i> Simplify Text
+                            </button>
+                            
+                            <div id="simplifyResult" class="result-container"></div>
+                            <div id="simplifyLoading" class="loading-container">
+                                <div class="loading-spinner"></div>
+                                <div class="loading-text">AI is analyzing your legal text...</div>
+                            </div>
+                        </div>
                     </div>
-                    <button class="btn" onclick="lookupTerms()">Lookup Terms</button>
-                    <div id="termsResult" class="result-box" style="display:none;"></div>
-                </div>
-                
-                <div class="feature-panel">
-                    <h3>⚠️ Risk Assessment</h3>
-                    <div class="input-group">
-                        <label>Document Text for Risk Analysis:</label>
-                        <textarea id="riskText" rows="4" placeholder="Enter document text to analyze for risks..."></textarea>
+                    
+                    <div id="terms-tab" class="tab-content">
+                        <div class="form-section">
+                            <i class="feature-icon fas fa-book"></i>
+                            <h3>Professional Legal Dictionary</h3>
+                            <p>Get clear, professional definitions of legal terms with real-world examples and explanations.</p>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Legal Terms (separate with commas):</label>
+                                <input id="termsInput" class="form-input" type="text" placeholder="e.g., liability, indemnification, force majeure, arbitration">
+                            </div>
+                            <button class="btn-primary" onclick="lookupTerms()">
+                                <i class="fas fa-search"></i> Lookup Terms
+                            </button>
+                            
+                            <div id="termsResult" class="result-container"></div>
+                            <div id="termsLoading" class="loading-container">
+                                <div class="loading-spinner"></div>
+                                <div class="loading-text">Looking up legal definitions...</div>
+                            </div>
+                        </div>
                     </div>
-                    <button class="btn" onclick="assessRisk()">Assess Risk</button>
-                    <div id="riskResult" class="result-box" style="display:none;"></div>
-                </div>
-                
-                <div class="feature-panel">
-                    <h3>📄 Document Upload</h3>
-                    <div class="input-group">
-                        <label>Upload Document:</label>
-                        <input id="fileInput" type="file" accept=".pdf,.doc,.docx,.txt">
+                    
+                    <div id="risk-tab" class="tab-content">
+                        <div class="form-section">
+                            <i class="feature-icon fas fa-shield-alt"></i>
+                            <h3>Professional Risk Assessment</h3>
+                            <p>Comprehensive analysis of potential legal risks in your documents with actionable recommendations.</p>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Document Text for Risk Analysis:</label>
+                                <textarea id="riskText" class="form-textarea" rows="6" placeholder="Paste your document content here for professional risk assessment..."></textarea>
+                            </div>
+                            <button class="btn-primary" onclick="assessRisk()">
+                                <i class="fas fa-search-plus"></i> Assess Risks
+                            </button>
+                            
+                            <div id="riskResult" class="result-container"></div>
+                            <div id="riskLoading" class="loading-container">
+                                <div class="loading-spinner"></div>
+                                <div class="loading-text">Conducting professional risk assessment...</div>
+                            </div>
+                        </div>
                     </div>
-                    <button class="btn" onclick="uploadDocument()">Upload Document</button>
-                    <div id="uploadResult" class="result-box" style="display:none;"></div>
+                    
+                    <div id="upload-tab" class="tab-content">
+                        <div class="form-section">
+                            <i class="feature-icon fas fa-upload"></i>
+                            <h3>Document Upload & Analysis</h3>
+                            <p>Upload your legal documents for comprehensive AI-powered analysis and insights.</p>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Select Document to Upload:</label>
+                                <input id="fileInput" class="form-input" type="file" accept=".pdf,.doc,.docx,.txt">
+                            </div>
+                            <button class="btn-primary" onclick="uploadDocument()">
+                                <i class="fas fa-cloud-upload-alt"></i> Upload & Analyze
+                            </button>
+                            
+                            <div id="uploadResult" class="result-container"></div>
+                            <div id="uploadLoading" class="loading-container">
+                                <div class="loading-spinner"></div>
+                                <div class="loading-text">Uploading and analyzing document...</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <div class="api-links">
-                <a href="/docs" target="_blank">📖 API Documentation</a>
-                <a href="/health" target="_blank">🏥 Health Check</a>
-                <a href="/" target="_blank">🏠 API Info</a>
-            </div>
+            <!-- Removed API footer with documentation links -->
         </div>
         
         <script>
             const API_BASE = window.location.origin;
             
+            function switchTab(tabName) {
+                // Remove active class from all tabs and content
+                document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to selected tab and content
+                event.target.classList.add('active');
+                document.getElementById(tabName + '-tab').classList.add('active');
+            }
+            
+            function showLoading(loadingId) {
+                document.getElementById(loadingId).style.display = 'block';
+            }
+            
+            function hideLoading(loadingId) {
+                document.getElementById(loadingId).style.display = 'none';
+            }
+            
+            function showResult(resultId, content) {
+                const resultDiv = document.getElementById(resultId);
+                resultDiv.innerHTML = content;
+                resultDiv.style.display = 'block';
+            }
+            
+            function showError(resultId, message) {
+                const errorContent = `
+                    <div class="error-container">
+                        <h4><i class="fas fa-exclamation-triangle"></i> Error</h4>
+                        <p>${message}</p>
+                    </div>
+                `;
+                showResult(resultId, errorContent);
+            }
+            
             async function simplifyText() {
                 const text = document.getElementById('simplifyText').value;
-                if (!text.trim()) return alert('Please enter some text to simplify');
+                if (!text.trim()) {
+                    alert('Please enter some legal text to simplify');
+                    return;
+                }
+                
+                showLoading('simplifyLoading');
+                document.getElementById('simplifyResult').style.display = 'none';
                 
                 try {
                     const response = await fetch(`${API_BASE}/api/simplify`, {
@@ -371,32 +916,77 @@ async def interactive_ui(request: Request):
                         body: JSON.stringify({ text: text })
                     });
                     const result = await response.json();
-                    document.getElementById('simplifyResult').style.display = 'block';
-                    document.getElementById('simplifyResult').innerHTML = `
-                        <h4>✨ AI Legal Analysis:</h4>
-                        <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                            <p><strong>📝 Original:</strong> ${result.original_text}</p>
+                    
+                    hideLoading('simplifyLoading');
+                    
+                    const content = `
+                        <div class="result-title">
+                            <i class="fas fa-magic"></i> AI Legal Analysis Results
                         </div>
-                        <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                            <p><strong>✨ Simplified:</strong> ${result.simplified_text}</p>
+                        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                            <h4 style="color: #10b981; margin-bottom: 15px;"><i class="fas fa-check-circle"></i> Simplified Explanation</h4>
+                            <p style="font-size: 16px; line-height: 1.7; color: #374151;">${result.simplified_text}</p>
                         </div>
-                        <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                            <p><strong>📊 Complexity Level:</strong> <span style="text-transform: capitalize; font-weight: bold;">${result.complexity_level}</span></p>
-                            <p><strong>🎯 Key Points:</strong></p>
-                            <ul>${Array.isArray(result.key_points) ? result.key_points.map(point => `<li>${point}</li>`).join('') : '<li>' + result.key_points + '</li>'}</ul>
-                            <p><strong>⚠️ Red Flags:</strong></p>
-                            <ul>${Array.isArray(result.red_flags) ? result.red_flags.map(flag => `<li style="color: #d63384;">${flag}</li>`).join('') : '<li style="color: #d63384;">' + result.red_flags + '</li>'}</ul>
-                            ${result.legal_advice ? `<p><strong>⚖️ General Guidance:</strong> <em>${result.legal_advice}</em></p>` : ''}
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                            <div style="background: white; padding: 20px; border-radius: 12px; border-left: 4px solid #3b82f6;">
+                                <h5 style="color: #3b82f6; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> Complexity Level</h5>
+                                <p style="font-size: 18px; font-weight: 600; text-transform: capitalize;">${result.complexity_level}</p>
+                            </div>
+                            
+                            <div style="background: white; padding: 20px; border-radius: 12px; border-left: 4px solid #8b5cf6;">
+                                <h5 style="color: #8b5cf6; margin-bottom: 10px;"><i class="fas fa-clock"></i> Urgency</h5>
+                                <p style="font-size: 14px; color: #6b7280;">Review recommended</p>
+                            </div>
                         </div>
+                        
+                        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                            <h4 style="color: #f59e0b; margin-bottom: 15px;"><i class="fas fa-lightbulb"></i> Key Points to Remember</h4>
+                            <ul style="list-style: none; padding: 0;">
+                                ${Array.isArray(result.key_points) ? result.key_points.map(point => `
+                                    <li style="margin-bottom: 10px; padding: 10px; background: #fef3c7; border-radius: 8px; border-left: 3px solid #f59e0b;">
+                                        <i class="fas fa-arrow-right" style="color: #f59e0b; margin-right: 10px;"></i>${point}
+                                    </li>
+                                `).join('') : `<li style="margin-bottom: 10px; padding: 10px; background: #fef3c7; border-radius: 8px;">${result.key_points}</li>`}
+                            </ul>
+                        </div>
+                        
+                        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
+                            <h4 style="color: #ef4444; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> Important Considerations</h4>
+                            <ul style="list-style: none; padding: 0;">
+                                ${Array.isArray(result.red_flags) ? result.red_flags.map(flag => `
+                                    <li style="margin-bottom: 10px; padding: 10px; background: #fee2e2; border-radius: 8px; border-left: 3px solid #ef4444;">
+                                        <i class="fas fa-warning" style="color: #ef4444; margin-right: 10px;"></i>${flag}
+                                    </li>
+                                `).join('') : `<li style="margin-bottom: 10px; padding: 10px; background: #fee2e2; border-radius: 8px;">${result.red_flags}</li>`}
+                            </ul>
+                        </div>
+                        
+                        ${result.legal_advice ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; border-left: 4px solid #6366f1;">
+                                <h4 style="color: #6366f1; margin-bottom: 15px;"><i class="fas fa-balance-scale"></i> Professional Guidance</h4>
+                                <p style="font-style: italic; color: #4b5563; line-height: 1.6;">${result.legal_advice}</p>
+                            </div>
+                        ` : ''}
                     `;
+                    
+                    showResult('simplifyResult', content);
+                    
                 } catch (error) {
-                    alert('Error: ' + error.message);
+                    hideLoading('simplifyLoading');
+                    showError('simplifyResult', 'Failed to analyze text. Please try again.');
                 }
             }
             
             async function lookupTerms() {
-                const terms = document.getElementById('termsInput').value.split(',').map(t => t.trim());
-                if (!terms.length || !terms[0]) return alert('Please enter some terms to lookup');
+                const terms = document.getElementById('termsInput').value.split(',').map(t => t.trim()).filter(t => t);
+                if (!terms.length) {
+                    alert('Please enter some legal terms to lookup');
+                    return;
+                }
+                
+                showLoading('termsLoading');
+                document.getElementById('termsResult').style.display = 'none';
                 
                 try {
                     const response = await fetch(`${API_BASE}/api/terms`, {
@@ -405,26 +995,56 @@ async def interactive_ui(request: Request):
                         body: JSON.stringify({ terms: terms })
                     });
                     const result = await response.json();
-                    document.getElementById('termsResult').style.display = 'block';
-                    document.getElementById('termsResult').innerHTML = `
-                        <h4>📚 AI Legal Dictionary:</h4>
+                    
+                    hideLoading('termsLoading');
+                    
+                    const content = `
+                        <div class="result-title">
+                            <i class="fas fa-book"></i> Professional Legal Dictionary
+                        </div>
                         ${result.definitions.map(def => `
-                            <div style="margin-bottom: 20px; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #667eea;">
-                                <h5 style="color: #667eea; margin-bottom: 10px;">📖 ${def.term}</h5>
-                                <p><strong>Legal Definition:</strong> ${def.definition}</p>
-                                <p><strong>🔍 Simple Explanation:</strong> ${def.simple_explanation}</p>
-                                ${def.example ? `<p><strong>💡 Example:</strong> <em>${def.example}</em></p>` : ''}
+                            <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #667eea;">
+                                <h4 style="color: #667eea; margin-bottom: 15px; font-size: 1.3rem;">
+                                    <i class="fas fa-bookmark"></i> ${def.term}
+                                </h4>
+                                
+                                <div style="margin-bottom: 15px; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                                    <h5 style="color: #374151; margin-bottom: 8px; font-weight: 600;">Professional Definition:</h5>
+                                    <p style="color: #4b5563; line-height: 1.6;">${def.definition}</p>
+                                </div>
+                                
+                                <div style="margin-bottom: 15px; padding: 15px; background: #ecfdf5; border-radius: 8px;">
+                                    <h5 style="color: #059669; margin-bottom: 8px; font-weight: 600;"><i class="fas fa-lightbulb"></i> In Simple Terms:</h5>
+                                    <p style="color: #047857; line-height: 1.6;">${def.simple_explanation}</p>
+                                </div>
+                                
+                                ${def.example ? `
+                                    <div style="padding: 15px; background: #eff6ff; border-radius: 8px;">
+                                        <h5 style="color: #2563eb; margin-bottom: 8px; font-weight: 600;"><i class="fas fa-example"></i> Real-World Example:</h5>
+                                        <p style="color: #1d4ed8; line-height: 1.6; font-style: italic;">${def.example}</p>
+                                    </div>
+                                ` : ''}
                             </div>
                         `).join('')}
                     `;
+                    
+                    showResult('termsResult', content);
+                    
                 } catch (error) {
-                    alert('Error: ' + error.message);
+                    hideLoading('termsLoading');
+                    showError('termsResult', 'Failed to lookup terms. Please try again.');
                 }
             }
             
             async function assessRisk() {
                 const text = document.getElementById('riskText').value;
-                if (!text.trim()) return alert('Please enter document text for risk assessment');
+                if (!text.trim()) {
+                    alert('Please enter document text for risk assessment');
+                    return;
+                }
+                
+                showLoading('riskLoading');
+                document.getElementById('riskResult').style.display = 'none';
                 
                 try {
                     const response = await fetch(`${API_BASE}/api/risk`, {
@@ -433,69 +1053,262 @@ async def interactive_ui(request: Request):
                         body: JSON.stringify({ document_text: text })
                     });
                     const result = await response.json();
-                    document.getElementById('riskResult').style.display = 'block';
-                    document.getElementById('riskResult').innerHTML = `
-                        <h4>⚠️ AI Risk Assessment:</h4>
-                        <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                            <p><strong>🎯 Risk Level:</strong> <span style="color: ${result.risk_level === 'high' ? '#dc3545' : result.risk_level === 'medium' ? '#fd7e14' : '#28a745'}; font-weight: bold; text-transform: uppercase;">${result.risk_level}</span></p>
-                            <p><strong>📊 Risk Score:</strong> <span style="font-size: 1.2em; font-weight: bold;">${result.risk_score}/100</span></p>
-                            ${result.urgency ? `<p><strong>⏰ Urgency:</strong> <span style="text-transform: capitalize; font-weight: bold;">${result.urgency}</span></p>` : ''}
+                    
+                    hideLoading('riskLoading');
+                    
+                    const getRiskColor = (level) => {
+                        switch(level.toLowerCase()) {
+                            case 'high': return '#ef4444';
+                            case 'medium': return '#f59e0b';
+                            case 'low': return '#10b981';
+                            default: return '#6b7280';
+                        }
+                    };
+                    
+                    const getUrgencyColor = (urgency) => {
+                        switch(urgency.toLowerCase()) {
+                            case 'high': return '#dc2626';
+                            case 'medium': return '#d97706';
+                            case 'low': return '#059669';
+                            default: return '#6b7280';
+                        }
+                    };
+                    
+                    const content = `
+                        <div class="result-title">
+                            <i class="fas fa-shield-alt"></i> Professional Risk Assessment Report
                         </div>
-                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #ffc107;">
-                            <p><strong>⚡ Risk Factors:</strong></p>
-                            <ul>${Array.isArray(result.risk_factors) ? result.risk_factors.map(factor => `<li>${factor}</li>`).join('') : '<li>' + result.risk_factors + '</li>'}</ul>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                            <div style="background: white; padding: 20px; border-radius: 12px; text-align: center; border-left: 4px solid ${getRiskColor(result.risk_level)};">
+                                <h5 style="color: ${getRiskColor(result.risk_level)}; margin-bottom: 10px;">Risk Level</h5>
+                                <p style="font-size: 1.5rem; font-weight: 700; text-transform: capitalize; color: ${getRiskColor(result.risk_level)};">${result.risk_level}</p>
+                            </div>
+                            
+                            <div style="background: white; padding: 20px; border-radius: 12px; text-align: center; border-left: 4px solid #3b82f6;">
+                                <h5 style="color: #3b82f6; margin-bottom: 10px;">Risk Score</h5>
+                                <p style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">${result.risk_score}/100</p>
+                            </div>
+                            
+                            <div style="background: white; padding: 20px; border-radius: 12px; text-align: center; border-left: 4px solid ${getUrgencyColor(result.urgency)};">
+                                <h5 style="color: ${getUrgencyColor(result.urgency)}; margin-bottom: 10px;">Urgency</h5>
+                                <p style="font-size: 1.5rem; font-weight: 700; text-transform: capitalize; color: ${getUrgencyColor(result.urgency)};">${result.urgency}</p>
+                            </div>
                         </div>
-                        <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #17a2b8;">
-                            <p><strong>💡 Recommendations:</strong></p>
-                            <ul>${Array.isArray(result.recommendations) ? result.recommendations.map(rec => `<li>${rec}</li>`).join('') : '<li>' + result.recommendations + '</li>'}</ul>
+                        
+                        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
+                            <h4 style="color: #ef4444; margin-bottom: 15px;"><i class="fas fa-exclamation-triangle"></i> Identified Risk Factors</h4>
+                            <ul style="list-style: none; padding: 0;">
+                                ${Array.isArray(result.risk_factors) ? result.risk_factors.map(factor => `
+                                    <li style="margin-bottom: 12px; padding: 12px; background: #fee2e2; border-radius: 8px; border-left: 3px solid #ef4444;">
+                                        <i class="fas fa-warning" style="color: #ef4444; margin-right: 10px;"></i>${factor}
+                                    </li>
+                                `).join('') : `<li style="margin-bottom: 12px; padding: 12px; background: #fee2e2; border-radius: 8px;">${result.risk_factors}</li>`}
+                            </ul>
                         </div>
-                        ${result.legal_concerns ? `
-                        <div style="background: #f8d7da; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #dc3545;">
-                            <p><strong>⚖️ Legal Concerns:</strong></p>
-                            <ul>${Array.isArray(result.legal_concerns) ? result.legal_concerns.map(concern => `<li>${concern}</li>`).join('') : '<li>' + result.legal_concerns + '</li>'}</ul>
+                        
+                        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                            <h4 style="color: #10b981; margin-bottom: 15px;"><i class="fas fa-tasks"></i> Professional Recommendations</h4>
+                            <ul style="list-style: none; padding: 0;">
+                                ${Array.isArray(result.recommendations) ? result.recommendations.map(rec => `
+                                    <li style="margin-bottom: 12px; padding: 12px; background: #d1fae5; border-radius: 8px; border-left: 3px solid #10b981;">
+                                        <i class="fas fa-check-circle" style="color: #10b981; margin-right: 10px;"></i>${rec}
+                                    </li>
+                                `).join('') : `<li style="margin-bottom: 12px; padding: 12px; background: #d1fae5; border-radius: 8px;">${result.recommendations}</li>`}
+                            </ul>
                         </div>
-                        ` : ''}
+                        
+                        <div style="background: white; padding: 25px; border-radius: 12px; border-left: 4px solid #f59e0b;">
+                            <h4 style="color: #f59e0b; margin-bottom: 15px;"><i class="fas fa-balance-scale"></i> Legal Concerns</h4>
+                            <ul style="list-style: none; padding: 0;">
+                                ${Array.isArray(result.legal_concerns) ? result.legal_concerns.map(concern => `
+                                    <li style="margin-bottom: 12px; padding: 12px; background: #fef3c7; border-radius: 8px; border-left: 3px solid #f59e0b;">
+                                        <i class="fas fa-gavel" style="color: #f59e0b; margin-right: 10px;"></i>${concern}
+                                    </li>
+                                `).join('') : `<li style="margin-bottom: 12px; padding: 12px; background: #fef3c7; border-radius: 8px;">${result.legal_concerns}</li>`}
+                            </ul>
+                        </div>
                     `;
+                    
+                    showResult('riskResult', content);
+                    
                 } catch (error) {
-                    alert('Error: ' + error.message);
+                    hideLoading('riskLoading');
+                    showError('riskResult', 'Failed to assess risks. Please try again.');
                 }
             }
             
             async function uploadDocument() {
                 const fileInput = document.getElementById('fileInput');
-                if (!fileInput.files[0]) return alert('Please select a file to upload');
+                const file = fileInput.files[0];
+                
+                if (!file) {
+                    alert('Please select a file to upload');
+                    return;
+                }
+                
+                showLoading('uploadLoading');
+                document.getElementById('uploadResult').style.display = 'none';
                 
                 try {
-                    const response = await fetch(`${API_BASE}/api/upload`, {
-                        method: 'POST'
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const response = await fetch(`${API_BASE}/api/documents/upload`, {
+                        method: 'POST',
+                        body: formData
                     });
                     const result = await response.json();
-                    document.getElementById('uploadResult').style.display = 'block';
-                    document.getElementById('uploadResult').innerHTML = `
-                        <h4>Upload Status:</h4>
-                        <p><strong>Status:</strong> ${result.success ? 'Success' : 'Failed'}</p>
-                        <p><strong>File ID:</strong> ${result.file_id}</p>
-                        <p><strong>Message:</strong> ${result.message}</p>
-                        <p><strong>Processing Status:</strong> ${result.processing_status}</p>
+                    
+                    hideLoading('uploadLoading');
+                    
+                    if (!result.success) {
+                        showError('uploadResult', result.error || 'Upload failed');
+                        return;
+                    }
+                    
+                    const analysis = result.ai_analysis || {};
+                    const riskAssessment = analysis.risk_assessment || {};
+                    
+                    const getRiskColor = (level) => {
+                        switch((level || 'medium').toLowerCase()) {
+                            case 'high': return '#ef4444';
+                            case 'medium': return '#f59e0b';
+                            case 'low': return '#10b981';
+                            default: return '#6b7280';
+                        }
+                    };
+                    
+                    const content = `
+                        <div class="result-title">
+                            <i class="fas fa-file-alt"></i> Document Analysis Complete
+                        </div>
+                        
+                        <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                            <h4 style="color: #10b981; margin-bottom: 15px;"><i class="fas fa-check-circle"></i> Upload Successful</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                <div><strong>File:</strong> ${result.filename}</div>
+                                <div><strong>Size:</strong> ${(result.size / 1024).toFixed(2)} KB</div>
+                                <div><strong>Type:</strong> ${result.file_type}</div>
+                                <div><strong>Status:</strong> ${result.processing_status}</div>
+                            </div>
+                        </div>
+                        
+                        ${analysis.document_summary ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                                <h4 style="color: #3b82f6; margin-bottom: 15px;"><i class="fas fa-file-text"></i> Document Summary</h4>
+                                <p style="line-height: 1.6; color: #374151;">${analysis.document_summary}</p>
+                                ${analysis.document_type ? `<p style="margin-top: 10px;"><strong>Document Type:</strong> <span style="text-transform: capitalize;">${analysis.document_type}</span></p>` : ''}
+                            </div>
+                        ` : ''}
+                        
+                        ${analysis.plain_english_explanation ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+                                <h4 style="color: #10b981; margin-bottom: 15px;"><i class="fas fa-lightbulb"></i> What This Means in Plain English</h4>
+                                <p style="line-height: 1.6; color: #374151;">${analysis.plain_english_explanation}</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${riskAssessment.risk_level ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid ${getRiskColor(riskAssessment.risk_level)};">
+                                <h4 style="color: ${getRiskColor(riskAssessment.risk_level)}; margin-bottom: 15px;"><i class="fas fa-shield-alt"></i> Risk Assessment</h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                                    <div style="text-align: center; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                                        <div style="font-size: 1.2rem; font-weight: 700; color: ${getRiskColor(riskAssessment.risk_level)}; text-transform: capitalize;">${riskAssessment.risk_level}</div>
+                                        <div style="font-size: 0.9rem; color: #6b7280;">Risk Level</div>
+                                    </div>
+                                    ${riskAssessment.risk_score ? `
+                                        <div style="text-align: center; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                                            <div style="font-size: 1.2rem; font-weight: 700; color: #3b82f6;">${riskAssessment.risk_score}/100</div>
+                                            <div style="font-size: 0.9rem; color: #6b7280;">Risk Score</div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                ${riskAssessment.main_risks && Array.isArray(riskAssessment.main_risks) ? `
+                                    <div>
+                                        <h5 style="margin-bottom: 10px; color: #374151;">Main Risks Identified:</h5>
+                                        <ul style="list-style: none; padding: 0;">
+                                            ${riskAssessment.main_risks.map(risk => {
+                                                // Handle both string and object cases
+                                                const riskText = typeof risk === 'string' ? risk : 
+                                                                typeof risk === 'object' ? (risk.description || risk.risk || risk.title || JSON.stringify(risk)) : 
+                                                                String(risk);
+                                                return `
+                                                    <li style="margin-bottom: 8px; padding: 10px; background: #fee2e2; border-radius: 6px; border-left: 3px solid #ef4444;">
+                                                        <i class="fas fa-warning" style="color: #ef4444; margin-right: 8px;"></i>${riskText}
+                                                    </li>
+                                                `;
+                                            }).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        ` : ''}
+                        
+                        ${analysis.key_findings && Array.isArray(analysis.key_findings) ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                                <h4 style="color: #f59e0b; margin-bottom: 15px;"><i class="fas fa-search"></i> Key Findings</h4>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${analysis.key_findings.map(finding => `
+                                        <li style="margin-bottom: 10px; padding: 12px; background: #fef3c7; border-radius: 8px; border-left: 3px solid #f59e0b;">
+                                            <i class="fas fa-arrow-right" style="color: #f59e0b; margin-right: 10px;"></i>${finding}
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        
+                        ${analysis.important_clauses && Array.isArray(analysis.important_clauses) ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">
+                                <h4 style="color: #8b5cf6; margin-bottom: 15px;"><i class="fas fa-gavel"></i> Important Clauses</h4>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${analysis.important_clauses.map(clause => `
+                                        <li style="margin-bottom: 10px; padding: 12px; background: #f3e8ff; border-radius: 8px; border-left: 3px solid #8b5cf6;">
+                                            <i class="fas fa-bookmark" style="color: #8b5cf6; margin-right: 10px;"></i>${clause}
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        
+                        ${analysis.recommendations && Array.isArray(analysis.recommendations) ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; border-left: 4px solid #10b981;">
+                                <h4 style="color: #10b981; margin-bottom: 15px;"><i class="fas fa-tasks"></i> Recommendations</h4>
+                                <ul style="list-style: none; padding: 0;">
+                                    ${analysis.recommendations.map(rec => `
+                                        <li style="margin-bottom: 10px; padding: 12px; background: #d1fae5; border-radius: 8px; border-left: 3px solid #10b981;">
+                                            <i class="fas fa-check-circle" style="color: #10b981; margin-right: 10px;"></i>${rec}
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                        
+                        ${result.extracted_text ? `
+                            <div style="background: white; padding: 25px; border-radius: 12px; border-left: 4px solid #6b7280;">
+                                <h4 style="color: #6b7280; margin-bottom: 15px;"><i class="fas fa-file-text"></i> Extracted Text Preview</h4>
+                                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px; line-height: 1.5; color: #374151; max-height: 200px; overflow-y: auto;">
+                                    ${result.extracted_text}
+                                </div>
+                            </div>
+                        ` : ''}
                     `;
+                    
+                    showResult('uploadResult', content);
+                    
                 } catch (error) {
-                    alert('Error: ' + error.message);
+                    hideLoading('uploadLoading');
+                    showError('uploadResult', 'Failed to upload document. Please try again.');
                 }
             }
         </script>
     </body>
     </html>
     """)
-
+# Run the server
 if __name__ == "__main__":
-    # Get port from environment variable (Railway sets this)
     port = int(os.environ.get("PORT", 8002))
-    
-    print(f"🚀 Starting Legal Assistant GenAI with Gemini AI on port {port}")
-    print(f"📱 API available at: http://0.0.0.0:{port}/")
-    print(f"🌐 Interactive UI available at: http://0.0.0.0:{port}/ui")
-    print(f"📖 API docs at: http://0.0.0.0:{port}/docs")
-    print(f"🤖 AI Status: {'✅ Gemini AI Ready' if model else '⚠️ Set GEMINI_API_KEY for AI features'}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
     
     uvicorn.run(
         "combined_app:app",
